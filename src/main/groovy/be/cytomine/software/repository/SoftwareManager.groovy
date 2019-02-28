@@ -41,10 +41,12 @@ class SoftwareManager {
     DockerHubManager dockerHubManager
 
     SoftwareManager(def gitHubUsername, def dockerUsername, def prefix, def idSoftwareUserRepository) throws ClassNotFoundException {
+        log.info("aaaaa")
         gitHubManager = new GitHubManager(gitHubUsername as String)
         dockerHubManager = new DockerHubManager(username: dockerUsername as String)
         prefixes << [(prefix): idSoftwareUserRepository]
         name =  "SoftwareManager $gitHubUsername / $dockerUsername"
+        log.info("bbbbb")
     }
 
     def updateSoftware() {

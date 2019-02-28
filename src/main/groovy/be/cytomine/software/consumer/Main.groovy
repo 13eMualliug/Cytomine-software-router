@@ -26,7 +26,6 @@ import be.cytomine.client.models.SoftwareUserRepository
 import be.cytomine.client.models.User
 import be.cytomine.software.consumer.threads.CommunicationThread
 import be.cytomine.software.consumer.threads.ProcessingServerThread
-import be.cytomine.software.repository.AbstractRepositoryManager
 import be.cytomine.software.repository.SoftwareManager
 import be.cytomine.software.repository.threads.RepositoryManagerThread
 import com.rabbitmq.client.Channel
@@ -43,7 +42,6 @@ import java.util.concurrent.Executors
 class Main {
 
     static def configFile = new ConfigSlurper().parse(new File("config.groovy").toURI().toURL())
-
 
     static Cytomine cytomine
     static Connection connection
@@ -121,7 +119,6 @@ class Main {
         SoftwareUserRepositoryCollection softwareUserRepositories = cytomine.getSoftwareUserRepositories()
         for (int i = 0; i < softwareUserRepositories.size(); i++) {
             SoftwareUserRepository currentSoftwareUserRepository = softwareUserRepositories.get(i)
-            def test=currentSoftwareUserRepository.getStr("username")
             try {
                 SoftwareManager softwareManager = new SoftwareManager(
                         currentSoftwareUserRepository.getStr("username"),
@@ -212,7 +209,6 @@ class Main {
             )
             ExecutorService executorService = Executors.newSingleThreadExecutor()
             executorService.execute(processingServerThread)
-
 
         }
     }
