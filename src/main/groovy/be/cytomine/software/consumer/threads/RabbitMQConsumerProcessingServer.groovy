@@ -1,7 +1,11 @@
 package be.cytomine.software.consumer.threads
 
 import be.cytomine.client.Cytomine
+import be.cytomine.client.collections.Collection
+import be.cytomine.client.collections.ProcessingServerCollection
+import be.cytomine.client.models.Job
 import be.cytomine.client.models.ProcessingServer
+import be.cytomine.software.communication.SSH
 import be.cytomine.software.consumer.Main
 import be.cytomine.software.processingmethod.AbstractProcessingMethod
 import com.rabbitmq.client.AMQP
@@ -23,7 +27,6 @@ class RabbitMQConsumerProcessingServer implements Consumer {
     private def mapMessage
     def runningJobs = [:]
     private JsonSlurper jsonSlurper = new JsonSlurper()
-
     private ProcessingServerThread psThread
     RabbitMQConsumerProcessingServer(ProcessingServer processServer, def mapMsg, AbstractProcessingMethod procesMethod, Channel chan,def runJob, ProcessingServerThread ps)
     {
@@ -65,6 +68,7 @@ class RabbitMQConsumerProcessingServer implements Consumer {
 
         def logPrefix = "[${processingServer.getStr("name")}]"
         log.info("${logPrefix} Thread waiting on queue : ${mapMessage["name"]}")
+
         if(envelope)
         {
             String message = new String(body, "UTF-8")
@@ -74,17 +78,17 @@ class RabbitMQConsumerProcessingServer implements Consumer {
             try {
                 switch (mapMessage["requestType"]) {
                     case "execute":
+                        Job job= new Job()
                         Long jobId = mapMessage["jobId"] as Long
                         logPrefix += "[Job ${jobId}]"
-                        log.info("${logPrefix} Try to execute... ")
+                        log.info("${logPrefix} Try to execute...")
 
                         log.info("${logPrefix} Try to find image... ")
                         def pullingCommand = mapMessage["pullingCommand"] as String
                         def temp = pullingCommand.substring(pullingCommand.indexOf("--name ") + "--name ".size(), pullingCommand.size())
                         def imageName = temp.substring(0, temp.indexOf(" "))
-
                         try {
-                            Main.cytomine.changeStatus(jobId, Cytomine.JobStatus.WAIT, 0, "Try to find image [${imageName}]")
+                            job.changeStatus(jobId,job.getVal(Job.JobStatus.WAIT), 0,"Try to find image [${imageName}]")
                         } catch (Exception e) {}
                         synchronized (Main.pendingPullingTable) {
                             def start = System.currentTimeSeconds()
@@ -92,12 +96,12 @@ class RabbitMQConsumerProcessingServer implements Consumer {
                                 def status = "The image [${imageName}] is currently being pulled ! Wait..."
                                 log.warn("${logPrefix} ${status}")
                                 try {
-                                    Main.cytomine.changeStatus(jobId, Cytomine.JobStatus.WAIT, 0, status)
+                                    job.changeStatus(jobId,job.getVal(Job.JobStatus.WAIT), 0,status)
                                 } catch (Exception e) {}
 
                                 if (System.currentTimeSeconds() - start > 1800) {
                                     status = "A problem occurred during the pulling process !"
-                                    Main.cytomine.changeStatus(jobId, Cytomine.JobStatus.FAILED, 0, status)
+                                    job.changeStatus(jobId,job.getVal(Job.JobStatus.FAILED), 0,status)
                                     return
                                 }
 
@@ -144,20 +148,23 @@ class RabbitMQConsumerProcessingServer implements Consumer {
                                     workingDirectory: processingServer.getStr("workingDirectory")
                             )
                             synchronized (runningJobs) {
+
                                 runningJobs.put(jobId, jobExecutionThread)
                             }
-                            Main.cytomine.changeStatus(jobId, Cytomine.JobStatus.INQUEUE, 0)
+                            job.changeStatus(jobId,job.getVal(Job.JobStatus.INQUEUE), 0)
+
                             ExecutorService executorService = Executors.newSingleThreadExecutor()
                             executorService.execute(jobExecutionThread)
 
                         } else {
                             def status = "A problem occurred during the pulling process !"
                             log.error("${logPrefix} ${status}")
-                            Main.cytomine.changeStatus(jobId, Cytomine.JobStatus.FAILED, 0, status)
+                            job.changeStatus(jobId,job.getVal(Job.JobStatus.FAILED), 0,status)
                         }
 
                         break
                     case "kill":
+                        Job job= new Job()
                         def jobId = mapMessage["jobId"] as Long
 
                         log.info("${logPrefix} Try killing the job : ${jobId}")
@@ -168,13 +175,14 @@ class RabbitMQConsumerProcessingServer implements Consumer {
                                 runningJobs.remove(jobId)
                             }
                             else {
-                                Main.cytomine.changeStatus(jobId, Cytomine.JobStatus.KILLED, 0)
+                                job.changeStatus(jobId,job.getVal(Job.JobStatus.KILLED), 0)
                             }
                         }
 
                         break
                     case "updateProcessingServer":
-                        ProcessingServer processingServer = Main.cytomine.getProcessingServer(mapMessage["processingServerId"] as Long)
+                        ProcessingServer processingServer=new ProcessingServer();
+                        processingServer.fetch(new Long(mapMessage["processingServerId"] as Long))
                         psThread.updateProcessingServer(processingServer)
 
                         break
