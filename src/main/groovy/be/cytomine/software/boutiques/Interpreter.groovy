@@ -1,5 +1,7 @@
 package be.cytomine.software.boutiques
 
+import be.cytomine.client.collections.Collection
+
 /*
  * Copyright (c) 2009-2018. Authors: see NOTICE file.
  *
@@ -78,6 +80,36 @@ class Interpreter {
         return [imageType: imageType, index: index, image: image]
     }
 
+    def getRamNeeded(){
+
+        def numberOfRamNeeded= descriptor?."ram-needed"?."numberInMB"
+        //if(!numberOfRamNeeded) throw new BoutiquesException("Number of ram needed missing !")
+
+        return numberOfRamNeeded
+    }
+
+    def getPreferredProcessorType(){
+
+        String processorType= descriptor?."preferred-processor-type"
+        if(!processorType) throw new BoutiquesException("Preferred processor type missing!")
+
+        return processorType
+    }
+
+    def getCpuCoresNeeded(){
+        def numberOfCpuCores=descriptor?."cpu-cores"
+        //if(!numberOfCpuCores) throw new BoutiquesException("number of cpu cores needed missing!")
+
+        return numberOfCpuCores
+    }
+
+    def getDiskSpaceNeeded(){
+        def numberOfDiskSpace=descriptor?."Disk-space"
+        //if(!numberOfDiskSpace) throw new BoutiquesException("number of disk space needed missing!")
+
+        return numberOfDiskSpace
+    }
+
     def parseSoftware() {
         String name = descriptor?."name"
         String description = descriptor?."description"
@@ -87,7 +119,7 @@ class Interpreter {
         Long processingServerId = -1L
         Long defaultProcessingServerId = -1L
         def minIndex = Integer.MAX_VALUE
-        ProcessingServerCollection processingServers = Main.cytomine.getProcessingServerCollection()
+        Collection<ProcessingServer> processingServers = Collection.fetch(ProcessingServer.class)
         for (int i = 0; i < processingServers.size(); i++) {
             ProcessingServer currentProcessingServer = processingServers.get(i)
             if (currentProcessingServer.getStr("name").trim().toLowerCase() == defaultProcessingServerName.trim().toLowerCase()) {
