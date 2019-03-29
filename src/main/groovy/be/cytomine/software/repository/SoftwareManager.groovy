@@ -18,8 +18,11 @@ package be.cytomine.software.repository
 
 import be.cytomine.client.CytomineException
 import be.cytomine.client.collections.ParameterConstraintCollection
+import be.cytomine.client.models.Description
 import be.cytomine.client.models.ParameterConstraint
 import be.cytomine.client.models.Software
+import be.cytomine.client.models.SoftwareParameter
+import be.cytomine.client.models.SoftwareParameterConstraint
 import be.cytomine.software.boutiques.Interpreter
 import be.cytomine.software.consumer.Main
 import be.cytomine.software.exceptions.BoutiquesException
@@ -41,12 +44,10 @@ class SoftwareManager {
     DockerHubManager dockerHubManager
 
     SoftwareManager(def gitHubUsername, def dockerUsername, def prefix, def idSoftwareUserRepository) throws ClassNotFoundException {
-        log.info("aaaaa")
         gitHubManager = new GitHubManager(gitHubUsername as String)
         dockerHubManager = new DockerHubManager(username: dockerUsername as String)
         prefixes << [(prefix): idSoftwareUserRepository]
         name =  "SoftwareManager $gitHubUsername / $dockerUsername"
-        log.info("bbbbb")
     }
 
     def updateSoftware() {
@@ -59,8 +60,7 @@ class SoftwareManager {
                 Software currentSoftware = softwareTable.get((repository as String).trim().toLowerCase()) as Software
                 def tags = dockerHubManager.getTags(repository as String)
                 if (tags.isEmpty()) {
-                    log.info "No Docker" +
-                            " tags: skip software"
+                    log.info "No Docker tags: skip software"
                     return
                 }
 
@@ -70,7 +70,8 @@ class SoftwareManager {
 
                         try {
                             def result = installSoftware(repository, tags.first())
-                            Main.cytomine.deprecateSoftware(currentSoftware.getId())
+                            Software software= new Software()
+                            software.deprecateSoftware(currentSoftware.getId())
                             softwareTable.put((repository as String).trim().toLowerCase(), result)
 
                             def imagePullerThread = new ImagePullerThread(pullingCommand: result.getStr("pullingCommand") as String)
@@ -134,6 +135,14 @@ class SoftwareManager {
 
         def idSoftwareUserRepository = startsWithKnownPrefix(repository).value
 
+        //this comment is to remove!!!
+        //basically, we'll retrieve our new "boutique tag" on the descriptor file
+
+        /*def numberOfRamNeeded = interpreter.getRamNeeded()
+        def numberOfCpuCoresNeeded = interpreter.getCpuCoresNeeded()
+        def numberOfDiskSpaceNeeded = interpreter.getDiskSpaceNeeded()
+        String typeOfPreferredProcessor= interpreter.getPreferredProcessorType()*/
+
         return addSoftwareToCytomine(release as String, software, command, arguments, pullingCommand,
                 idSoftwareUserRepository)
     }
@@ -152,7 +161,8 @@ class SoftwareManager {
     private def addSoftwareToCytomine(def version, def software, def command, def arguments, def pullingCommand,
                                       def idSoftwareUserRepository) throws CytomineException {
         // Add the piece of software
-        def resultSoftware = Main.cytomine.addSoftware(
+        Software resultSoftware= new Software()
+        resultSoftware.addSoftware(
                 version as String,
                 software.name as String,
                 idSoftwareUserRepository,
@@ -162,18 +172,20 @@ class SoftwareManager {
                 pullingCommand as String)
 
         if (software.description?.trim()) {
-            Main.cytomine.addDescription(resultSoftware.getId(), "be.cytomine.processing.Software",
+            Description description= new Description()
+            description.addDescription(resultSoftware.getId(), "be.cytomine.processing.Software",
                     software.description as String)
         }
 
         // Load constraints
-        ParameterConstraintCollection constraints = Main.cytomine.getParameterConstraints()
+        ParameterConstraintCollection constraints = ParameterConstraintCollection.fetch(ParameterConstraintCollection.class)
 
         // Add the arguments
         arguments.each { element ->
             def type = (element.type as String).toLowerCase().capitalize()
             if (type == 'Listdomain') type = 'ListDomain'
-            def resultSoftwareParameter = Main.cytomine.addSoftwareParameter(
+            SoftwareParameter resultSoftwareParameter = new SoftwareParameter()
+                    resultSoftwareParameter.addSoftwareParameter(
                     element.name as String,
                     type,
                     resultSoftware.getId(),
@@ -187,14 +199,15 @@ class SoftwareManager {
                     element.serverParameter.toBoolean(),
                     element.humanName as String,
                     element.valueKey as String,
-                    element.commandLineFlag as String)
+                    element.commandLineFlag as String)//OK
 
             log.info(element)
 
             // Add the description
             if (element.description?.trim()) {
-                Main.cytomine.addDescription(resultSoftwareParameter.getId(), "be.cytomine.processing.SoftwareParameter",
-                        element.description as String)
+                Description description= new Description()
+                description.addDescription(resultSoftware.getId(), "be.cytomine.processing.SoftwareParameter",
+                        software.description as String)
             }
 
             // Add the constraints
@@ -202,8 +215,8 @@ class SoftwareManager {
                 for (int i = 0; i < constraints.size(); i++) {
                     ParameterConstraint constraint = constraints.get(i)
                     if (constraint.getStr("name").trim().toLowerCase() == "integer") {
-                        Main.cytomine.addSoftwareParameterConstraint(constraint.getId(),
-                                resultSoftwareParameter.getId(), element.integer as String)
+                        SoftwareParameterConstraint softwareParameterConstraint=new SoftwareParameterConstraint()
+                        softwareParameterConstraint.addSoftwareParameterConstraint(new Long(constraint.getId()),new Long(resultSoftwareParameter.getId()),  element.integer as String)
                     }
                 }
             }
@@ -213,8 +226,8 @@ class SoftwareManager {
                     ParameterConstraint constraint = constraints.get(i)
                     if (constraint.getStr("name").trim().toLowerCase() == "minimum" &&
                             constraint.getStr("dataType").trim().toLowerCase() == element.type.trim().toLowerCase()) {
-                        Main.cytomine.addSoftwareParameterConstraint(constraint.getId(),
-                                resultSoftwareParameter.getId(), element.minimum as String)
+                        SoftwareParameterConstraint softwareParameterConstraint=new SoftwareParameterConstraint()
+                        softwareParameterConstraint.addSoftwareParameterConstraint(new Long(constraint.getId()),new Long(resultSoftwareParameter.getId()),  element.minimum as String)
                     }
                 }
             }
@@ -223,8 +236,8 @@ class SoftwareManager {
                     ParameterConstraint constraint = constraints.get(i)
                     if (constraint.getStr("name").trim().toLowerCase() == "maximum" &&
                             constraint.getStr("dataType").trim().toLowerCase() == element.type.trim().toLowerCase()) {
-                        Main.cytomine.addSoftwareParameterConstraint(constraint.getId(),
-                                resultSoftwareParameter.getId(), element.maximum as String)
+                        SoftwareParameterConstraint softwareParameterConstraint=new SoftwareParameterConstraint()
+                        softwareParameterConstraint.addSoftwareParameterConstraint(new Long(constraint.getId()),new Long(resultSoftwareParameter.getId()),  element.maximum as String)
                     }
                 }
             }
@@ -233,8 +246,8 @@ class SoftwareManager {
                     ParameterConstraint constraint = constraints.get(i)
                     if (constraint.getStr("name").trim().toLowerCase() == "equals" &&
                             constraint.getStr("dataType").trim().toLowerCase() == element.type.trim().toLowerCase()) {
-                        Main.cytomine.addSoftwareParameterConstraint(constraint.getId(),
-                                resultSoftwareParameter.getId(), element.equals as String)
+                        SoftwareParameterConstraint softwareParameterConstraint=new SoftwareParameterConstraint()
+                        softwareParameterConstraint.addSoftwareParameterConstraint(new Long(constraint.getId()),new Long(resultSoftwareParameter.getId()),  element.equals as String)
                     }
                 }
             }
@@ -243,8 +256,8 @@ class SoftwareManager {
                     ParameterConstraint constraint = constraints.get(i)
                     if (constraint.getStr("name").trim().toLowerCase() == "in" &&
                             constraint.getStr("dataType").trim().toLowerCase() == element.type.trim().toLowerCase()) {
-                        Main.cytomine.addSoftwareParameterConstraint(constraint.getId(),
-                                resultSoftwareParameter.getId(), element.in as String)
+                        SoftwareParameterConstraint softwareParameterConstraint=new SoftwareParameterConstraint()
+                        softwareParameterConstraint.addSoftwareParameterConstraint(new Long(constraint.getId()),new Long(resultSoftwareParameter.getId()),  element.in as String)
                     }
                 }
             }
