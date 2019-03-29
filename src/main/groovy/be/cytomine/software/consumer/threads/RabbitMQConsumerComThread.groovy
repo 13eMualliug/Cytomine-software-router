@@ -1,16 +1,25 @@
 package be.cytomine.software.consumer.threads
 
+import be.cytomine.client.collections.ProcessingServerCollection
+import be.cytomine.client.models.AmqpQueue
 import be.cytomine.client.models.ProcessingServer
+import be.cytomine.software.communication.SSH
 import be.cytomine.software.consumer.Main
 import be.cytomine.software.repository.SoftwareManager
 import be.cytomine.software.repository.threads.RepositoryManagerThread
 import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.Channel
+import com.rabbitmq.client.Connection
+import com.rabbitmq.client.ConnectionFactory
 import com.rabbitmq.client.Consumer
 import com.rabbitmq.client.Envelope
+import com.rabbitmq.client.MessageProperties
 import com.rabbitmq.client.ShutdownSignalException
+import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import groovy.util.logging.Log4j
+import org.json.simple.JSONObject
+
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -65,7 +74,8 @@ class RabbitMQConsumerComThread implements Consumer {
                 case "addProcessingServer":
                     log.info("[Communication] Add a new processing server : " + mapMessage["name"])
 
-                    ProcessingServer processingServer = Main.cytomine.getProcessingServer(mapMessage["processingServerId"] as Long)
+                    ProcessingServer processingServer=new ProcessingServer()
+                    processingServer.fetch(new Long(mapMessage["processingServerId"] as Long))
 
                     // Launch the processingServerThread associated to the upon processingServer
                     Runnable processingServerThread = new ProcessingServerThread(channel, mapMessage, processingServer)
